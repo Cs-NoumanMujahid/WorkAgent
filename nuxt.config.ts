@@ -1,4 +1,5 @@
-import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
+import vuetify from 'vite-plugin-vuetify'
+
 
 export default defineNuxtConfig({
   future: { compatibilityVersion: 4 },
@@ -14,10 +15,14 @@ export default defineNuxtConfig({
       })
     }
   ],
+   
+
 
   css: [
     'vuetify/styles',
     '@mdi/font/css/materialdesignicons.css',
+    '~/assets/styles/main.scss',
+  
   ],
 
   build: {
