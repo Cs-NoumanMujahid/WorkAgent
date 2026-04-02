@@ -3,3 +3,9 @@
     <NuxtPage />
   </NuxtLayout>
 </template>
+
+<script setup lang="ts">
+
+const authStore = useAuthStore()
+authStore.initFromCookie()
+</script>

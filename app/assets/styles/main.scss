@@ -1,0 +1,15 @@
+.custom-radius .v-field__outline {
+  border-radius: 32px !important;
+}
+
+.custom-radius .v-field {
+  border-radius: 32px !important;
+}
+
+.custom-radius .v-field__input,
+.custom-radius input:-webkit-autofill,
+.custom-radius input:-webkit-autofill:hover, 
+.custom-radius input:-webkit-autofill:focus, 
+.custom-radius input:-webkit-autofill:active {
+  border-radius: 32px !important;
+}

@@ -26,7 +26,29 @@
         <v-app-bar-title>Task Manager</v-app-bar-title>
         <template #append>
           <v-btn icon="mdi-bell" />
-          <v-btn icon="mdi-account-circle" />
+          <v-menu>
+            <template #activator="{ props }">
+              <v-btn icon="mdi-account-circle" v-bind="props" />
+            </template>
+            <v-list>
+              <v-list-item
+                prepend-icon="mdi-account"
+                title="Profile"
+                to="/profile"
+              />
+              <v-list-item
+                prepend-icon="mdi-cog"
+                title="Settings"
+                to="/settings"
+              />
+              <v-divider />
+              <v-list-item
+                prepend-icon="mdi-logout"
+                title="Logout"
+                @click="authStore.logout()"
+              />
+            </v-list>
+          </v-menu>
         </template>
       </v-app-bar>
 
@@ -42,6 +64,7 @@
 
 <script setup lang="ts">
 const drawer = ref(true)
+const authStore = useAuthStore()
 
 const navItems = [
   { title: 'Dashboard', icon: 'mdi-view-dashboard', to: '/dashboard' },
