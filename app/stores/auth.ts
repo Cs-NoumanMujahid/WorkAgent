@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import type { User } from '~/shared/types/user'
 import type { LoginCredentials, RegisterCredentials } from '~/shared/types/user'
 
-const ExistingUsers: (User & { password: string })[] = [
+const DEFAULT_USERS: (User & { password: string })[] = [
   {
     id: '1',
     fullName: 'Admin User',
@@ -23,6 +23,19 @@ const ExistingUsers: (User & { password: string })[] = [
   },
 ]
 
+// Helper for persistence
+const getPersistentUsers = (): (User & { password: string })[] => {
+  if (import.meta.server) return DEFAULT_USERS
+  const stored = localStorage.getItem('work_agent_users')
+  return stored ? JSON.parse(stored) : DEFAULT_USERS
+}
+
+const savePersistentUsers = (users: any[]) => {
+  if (import.meta.client) {
+    localStorage.setItem('work_agent_users', JSON.stringify(users))
+  }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null as User | null,
@@ -39,7 +52,8 @@ export const useAuthStore = defineStore('auth', {
    
       await new Promise(resolve => setTimeout(resolve, 1500))
 
-      const found = ExistingUsers.find(
+      const users = getPersistentUsers()
+      const found = users.find(
         u => u.email === credentials.email && u.password === credentials.password
       )
 
@@ -63,13 +77,14 @@ export const useAuthStore = defineStore('auth', {
     async register(credentials: RegisterCredentials): Promise<{ success: boolean; message: string }> {
       await new Promise(resolve => setTimeout(resolve, 1500))
 
-      const exists = ExistingUsers.find(u => u.email === credentials.email)
+      const users = getPersistentUsers()
+      const exists = users.find(u => u.email === credentials.email)
       if (exists) {
         return { success: false, message: 'An account with this email already exists.' }
       }
 
       const newUser: User = {
-        id: String(ExistingUsers.length + 1),
+        id: String(users.length + 1),
         fullName: credentials.fullName,
         email: credentials.email,
         role: 'user',
@@ -77,7 +92,8 @@ export const useAuthStore = defineStore('auth', {
         updatedAt: new Date().toISOString(),
       }
 
-      ExistingUsers.push({ ...newUser, password: credentials.password })
+      users.push({ ...newUser, password: credentials.password })
+      savePersistentUsers(users)
 
       return { success: true, message: 'Registration successful! Please log in.' }
     },
