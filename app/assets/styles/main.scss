@@ -8,8 +8,22 @@
 
 .custom-radius .v-field__input,
 .custom-radius input:-webkit-autofill,
-.custom-radius input:-webkit-autofill:hover, 
-.custom-radius input:-webkit-autofill:focus, 
+.custom-radius input:-webkit-autofill:hover,
+.custom-radius input:-webkit-autofill:focus,
 .custom-radius input:-webkit-autofill:active {
   border-radius: 32px !important;
+}
+
+.hide-scrollbar {
+  overflow-y: auto !important;
+
+  scrollbar-width: none !important;
+
+  -ms-overflow-style: none !important;
+
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+
 }
