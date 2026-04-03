@@ -36,7 +36,7 @@
           variant="outlined"
           rounded="lg"
           prepend-icon="mdi-account"
-          to="/profile"
+          to="/dashboard/profile"
           class="text-none text-white font-weight-bold"
           style="border-color: rgba(255,255,255,0.5);"
         >

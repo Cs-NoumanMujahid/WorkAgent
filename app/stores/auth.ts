@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
-import type { User } from '~/shared/types/user'
+import type { User, ChangePasswordPayload } from '~/shared/types/user'
 import type { LoginCredentials, RegisterCredentials } from '~/shared/types/user'
 
-const DEFAULT_USERS: (User & { password: string })[] = [
+const ExistingUsers: (User & { password: string })[] = [
   {
     id: '1',
     fullName: 'Admin User',
@@ -25,9 +25,9 @@ const DEFAULT_USERS: (User & { password: string })[] = [
 
 // Helper for persistence
 const getPersistentUsers = (): (User & { password: string })[] => {
-  if (import.meta.server) return DEFAULT_USERS
+  if (import.meta.server) return ExistingUsers
   const stored = localStorage.getItem('work_agent_users')
-  return stored ? JSON.parse(stored) : DEFAULT_USERS
+  return stored ? JSON.parse(stored) : ExistingUsers
 }
 
 const savePersistentUsers = (users: any[]) => {
@@ -65,7 +65,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = user
       this.token = `mock-token-${user.id}`
 
-      const cookie = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 7 })
+      const cookie = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 7 , secure: true, sameSite: 'strict' })
       cookie.value = this.token
 
       const userCookie = useCookie('auth_user', { maxAge: 60 * 60 * 24 * 7 })
@@ -118,6 +118,65 @@ export const useAuthStore = defineStore('auth', {
         this.token = authCookie.value
         this.user = JSON.parse(userCookie.value as string)
       }
+    },
+
+    async updateProfile(data: Partial<User>): Promise<{ success: boolean; message: string }> {
+      if (!this.user) return { success: false, message: 'User not logged in.' }
+
+      const users = getPersistentUsers()
+      const userIndex = users.findIndex(u => u.id === this.user?.id)
+
+      if (userIndex === -1) {
+        return { success: false, message: 'User not found in system.' }
+      }
+
+      // Update the user in the "database"
+      const currentUser = users[userIndex]
+      const updatedUser = { 
+        ...currentUser, 
+        ...data, 
+        updatedAt: new Date().toISOString() 
+      } as User & { password: string }
+
+      users[userIndex] = updatedUser
+      savePersistentUsers(users)
+
+      // Update current state
+      const { password, ...userWithoutPassword } = updatedUser
+      this.user = userWithoutPassword
+
+      // Update cookie
+      const userCookie = useCookie('auth_user', { maxAge: 60 * 60 * 24 * 7 })
+      userCookie.value = JSON.stringify(this.user)
+
+      return { success: true, message: 'Profile updated successfully!' }
+    },
+
+    async changePassword(payload: ChangePasswordPayload): Promise<{ success: boolean; message: string }> {
+      if (!this.user) return { success: false, message: 'User not logged in.' }
+
+      const users = getPersistentUsers()
+      const userIndex = users.findIndex(u => u.id === this.user?.id)
+
+      if (userIndex === -1) {
+        return { success: false, message: 'User not found in system.' }
+      }
+
+      const foundUser = users[userIndex]
+      if (!foundUser || foundUser.password !== payload.currentPassword) {
+        return { success: false, message: 'Current password is incorrect.' }
+      }
+
+      // Update password
+      const updatedUser = {
+        ...foundUser,
+        password: payload.newPassword,
+        updatedAt: new Date().toISOString()
+      }
+      users[userIndex] = updatedUser
+      savePersistentUsers(users)
+
+      return { success: true, message: 'Password changed successfully!' }
     },
   },
 })
