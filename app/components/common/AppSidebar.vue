@@ -19,7 +19,8 @@
 
     <div class="px-6 py-4 mx-4 mb-4 bg-grey-lighten-4 rounded-xl d-flex align-center ga-3">
       <v-avatar color="primary" size="40">
-        <span class="text-subtitle-1 font-weight-bold text-white">{{ userInitials }}</span>
+        <v-img v-if="authStore.user?.avatar" :src="authStore.user.avatar" cover />
+        <span v-else class="text-subtitle-1 font-weight-bold text-white">{{ userInitials }}</span>
       </v-avatar>
       <div class="flex-grow-1 overflow-hidden">
         <p class="text-body-2 font-weight-bold ma-0 text-truncate">{{ authStore.user?.fullName }}</p>
@@ -69,7 +70,7 @@
       <v-list-item
         prepend-icon="mdi-account-outline"
         title="Profile"
-        to="/profile"
+        to="/dashboard/profile"
         rounded="xl"
         active-color="primary"
         class="mb-1"

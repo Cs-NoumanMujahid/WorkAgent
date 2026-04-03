@@ -12,7 +12,7 @@
           <v-list-item
             prepend-icon="mdi-account"
             title="Profile"
-            to="/profile"
+            to="/dashboard/profile"
           />
           <v-list-item
             prepend-icon="mdi-cog"
