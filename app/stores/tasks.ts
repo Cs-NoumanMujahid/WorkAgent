@@ -117,7 +117,7 @@ export const useTaskStore = defineStore('tasks', {
       localStorage.setItem(key, JSON.stringify(this.allTasks))
     },
 
-    addTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) {
+    addTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) {
       const authStore = useAuthStore()
 
       const newTask: Task = {
