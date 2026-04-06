@@ -17,7 +17,7 @@
           color="white"
           rounded="lg"
           prepend-icon="mdi-plus"
-          to="/dashboard"
+          to="/tasks/create"
           class="text-none text-primary font-weight-bold"
         >
           New Task
@@ -26,7 +26,7 @@
           variant="outlined"
           rounded="lg"
           prepend-icon="mdi-format-list-bulleted"
-          to="/dashboard"
+          to="/tasks"
           class="text-none text-white font-weight-bold"
           style="border-color: rgba(255,255,255,0.5);"
         >
