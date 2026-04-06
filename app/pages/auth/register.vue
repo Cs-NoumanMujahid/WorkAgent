@@ -66,10 +66,6 @@
         </a>
       </div>
 
-      <v-alert v-if="error" type="error" class="mb-4" rounded="lg">
-        {{ error }}
-      </v-alert>
-
       <v-btn
         type="submit"
         size="large"
@@ -103,7 +99,6 @@ definePageMeta({ layout: 'auth', middleware: 'guest' })
 const formRef = ref()
 const loading = ref(false)
 const showPassword = ref(false)
-const error = ref('')
 
 const form = reactive<RegisterCredentials>({
   fullName: '',
@@ -113,6 +108,7 @@ const form = reactive<RegisterCredentials>({
 })
 
 const authStore = useAuthStore()
+const uiStore = useUiStore()
 
 async function handleRegister() {
   const { valid } = await formRef.value.validate()
@@ -123,9 +119,10 @@ async function handleRegister() {
   loading.value = false
 
   if (result.success) {
+    uiStore.showSnackbar(result.message, 'success')
     navigateTo('/auth/login')
   } else {
-    error.value = result.message
+    uiStore.showSnackbar(result.message, 'error')
   }
 }
 </script>

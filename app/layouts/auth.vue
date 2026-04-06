@@ -36,9 +36,26 @@
         </v-card>
       </v-container>
     </v-main>
+
+    <v-snackbar
+      v-model="uiStore.snackbar.show"
+      :color="uiStore.snackbar.color"
+      :timeout="uiStore.snackbar.timeout"
+      rounded="lg"
+      location="top end"
+    >
+      {{ uiStore.snackbar.text }}
+
+      <template #actions>
+        <v-btn variant="text" @click="uiStore.closeSnackbar()">
+          Close
+        </v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
 <script setup lang="ts">
 import yogaAnimation from '~/assets/animations/yoga.json'
+const uiStore = useUiStore()
 </script>
