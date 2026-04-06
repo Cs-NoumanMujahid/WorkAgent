@@ -29,6 +29,7 @@
           class="d-none"
           @change="handleImageUpload"
         />
+
       </v-avatar>
 
       <div class="flex-grow-1">
@@ -154,9 +155,8 @@ const formValid = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 /**
- * IMPORTANT FIX:
- * do NOT initialize directly from store snapshot
- * because authStore.user may load AFTER mount
+ * LOCAL COPY CONTROL
+ * avoids overwriting user input while typing
  */
 const formData = reactive<Partial<User>>({
   fullName: '',
@@ -166,22 +166,34 @@ const formData = reactive<Partial<User>>({
   avatar: ''
 })
 
-/* ---------------- SYNC STORE -> FORM ---------------- */
+/* ---------------- INITIAL LOAD FROM STORE ---------------- */
 
-watchEffect(() => {
-  if (!authStore.user) return
+const loadFromStore = () => {
+  const u = authStore.user
+  if (!u) return
 
-  formData.fullName = authStore.user.fullName || ''
-  formData.email = authStore.user.email || ''
-  formData.phone = authStore.user.phone || ''
-  formData.bio = authStore.user.bio || ''
-  formData.avatar = authStore.user.avatar || ''
-})
+  formData.fullName = u.fullName || ''
+  formData.email = u.email || ''
+  formData.phone = u.phone || ''
+  formData.bio = u.bio || ''
+  formData.avatar = u.avatar || ''
+}
+
+/**
+ * run once + when user changes
+ * (NOT watchEffect → prevents overwrite while typing)
+ */
+watch(
+  () => authStore.user,
+  () => loadFromStore(),
+  { immediate: true }
+)
 
 /* ---------------- COMPUTED ---------------- */
 
 const userInitials = computed(() => {
   const name = formData.fullName || '?'
+
   return name
     .split(' ')
     .map(n => n[0])
@@ -210,7 +222,6 @@ const handleImageUpload = (event: Event) => {
 
   reader.readAsDataURL(file)
 
-  // important: allow re-upload same file
   input.value = ''
 }
 
@@ -224,13 +235,15 @@ const handleSubmit = async () => {
 }
 
 const handleCancel = () => {
+  loadFromStore() // reset form back to actual user state
   emit('cancel')
 }
 
-/* ---------------- RESET (optional exposure) ---------------- */
+/* ---------------- EXPOSE ---------------- */
 
 const reset = () => {
   formRef.value?.reset()
+  loadFromStore()
 }
 
 defineExpose({ reset })

@@ -32,7 +32,7 @@
     </div>
 
     <!-- PROFILE HEADER -->
-    <div class="d-flex align-center ga-5 mb-8">
+    <div class="d-flex align-center ga-5 mb-6">
 
       <v-avatar size="80" color="primary" rounded="lg">
         <v-img
@@ -54,6 +54,11 @@
         <p class="text-body-2 text-medium-emphasis">
           {{ user?.email || 'No email available' }}
         </p>
+
+        <div class="d-flex align-center ga-2 text-caption text-medium-emphasis mt-1">
+          <v-icon size="16" icon="mdi-calendar-blank-outline" />
+          <span>Member since {{ memberSince }}</span>
+        </div>
       </div>
 
     </div>
@@ -63,25 +68,22 @@
 
       <v-col cols="12" md="6">
         <div class="mb-4">
-          <div class="text-caption text-medium-emphasis">Phone</div>
+          <div class="d-flex align-center ga-2 text-caption text-medium-emphasis">
+            <v-icon size="16" icon="mdi-phone-outline" />
+            <span>Phone</span>
+          </div>
           <div class="text-body-1">
             {{ user?.phone || 'Not provided' }}
           </div>
         </div>
       </v-col>
 
-      <v-col cols="12" md="6">
-        <div class="mb-4">
-          <div class="text-caption text-medium-emphasis">Role</div>
-          <div class="text-body-1">
-            {{ user?.role || 'User' }}
-          </div>
-        </div>
-      </v-col>
-
       <v-col cols="12">
         <div class="mb-2">
-          <div class="text-caption text-medium-emphasis">Bio</div>
+          <div class="d-flex align-center ga-2 text-caption text-medium-emphasis">
+            <v-icon size="16" icon="mdi-text-account" />
+            <span>Bio</span>
+          </div>
           <div class="text-body-1">
             {{ user?.bio || 'No bio added yet.' }}
           </div>
@@ -117,5 +119,15 @@ const initials = computed(() => {
     .join('')
     .toUpperCase()
     .slice(0, 2)
+})
+
+const memberSince = computed(() => {
+  const raw = user.value?.createdAt
+  if (!raw) return '—'
+
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: '2-digit' }).format(date)
 })
 </script>

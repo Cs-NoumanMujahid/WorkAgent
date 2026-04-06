@@ -36,6 +36,8 @@ const savePersistentUsers = (users: any[]) => {
   }
 }
 
+const AUTH_USER_STORAGE_KEY = 'work_agent_auth_user'
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null as User | null,
@@ -65,11 +67,19 @@ export const useAuthStore = defineStore('auth', {
       this.user = user
       this.token = `mock-token-${user.id}`
 
-      const cookie = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 7 , secure: true, sameSite: 'strict' })
+      // `secure: true` breaks local http dev (cookie won't be stored/sent).
+      const cookie = useCookie('auth_token', {
+        maxAge: 60 * 60 * 24 * 7,
+        secure: import.meta.env.PROD,
+        sameSite: 'lax',
+        path: '/'
+      })
       cookie.value = this.token
 
-      const userCookie = useCookie('auth_user', { maxAge: 60 * 60 * 24 * 7 })
-      userCookie.value = JSON.stringify(this.user)
+      // Persist user in localStorage instead of cookies (avatar/base64 can exceed cookie size limits).
+      if (import.meta.client) {
+        localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(this.user))
+      }
 
       return { success: true, message: 'Login successful!' }
     },
@@ -102,21 +112,27 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.token = null
 
-      const authCookie = useCookie('auth_token')
-      const userCookie = useCookie('auth_user')
+      const authCookie = useCookie('auth_token', { path: '/' })
       authCookie.value = null
-      userCookie.value = null
+      if (import.meta.client) {
+        localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+      }
 
       navigateTo('/auth/login')
     },
 
     initFromCookie() {
-      const authCookie = useCookie('auth_token')
-      const userCookie = useCookie('auth_user')
-
-      if (authCookie.value && userCookie.value) {
+      const authCookie = useCookie('auth_token', { path: '/' })
+      if (authCookie.value) {
         this.token = authCookie.value
-        this.user = JSON.parse(userCookie.value as string)
+
+        // Prefer localStorage user snapshot (supports large avatar strings).
+        if (import.meta.client) {
+          const storedUser = localStorage.getItem(AUTH_USER_STORAGE_KEY)
+          if (storedUser) {
+            this.user = JSON.parse(storedUser)
+          }
+        }
       }
     },
 
@@ -145,9 +161,10 @@ export const useAuthStore = defineStore('auth', {
       const { password, ...userWithoutPassword } = updatedUser
       this.user = userWithoutPassword
 
-      // Update cookie
-      const userCookie = useCookie('auth_user', { maxAge: 60 * 60 * 24 * 7 })
-      userCookie.value = JSON.stringify(this.user)
+      // Persist user snapshot locally (supports large avatar strings).
+      if (import.meta.client) {
+        localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(this.user))
+      }
 
       return { success: true, message: 'Profile updated successfully!' }
     },
