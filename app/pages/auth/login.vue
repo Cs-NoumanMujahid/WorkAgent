@@ -39,10 +39,6 @@
         </a>
       </div>
 
-      <v-alert v-if="error" type="error" class="mb-4" rounded="lg">
-        {{ error }}
-      </v-alert>
-
       <v-btn
         type="submit"
         size="large"
@@ -84,7 +80,7 @@ const form = reactive<LoginCredentials>({
 })
 
 const authStore = useAuthStore()
-const error = ref('')
+const uiStore = useUiStore()
 
 async function handleLogin() {
   const { valid } = await formRef.value.validate()
@@ -95,9 +91,10 @@ async function handleLogin() {
   loading.value = false
 
   if (result.success) {
+    uiStore.showSnackbar(result.message, 'success')
     navigateTo('/dashboard')
   } else {
-    error.value = result.message
+    uiStore.showSnackbar(result.message, 'error')
   }
 }
 </script>

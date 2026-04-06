@@ -117,22 +117,6 @@
       </v-col>
     </v-row>
 
-    <!-- SNACKBAR -->
-    <v-snackbar
-      v-model="snackbar.show"
-      :color="snackbar.color"
-      rounded="lg"
-      location="top end"
-    >
-      {{ snackbar.text }}
-
-      <template #actions>
-        <v-btn variant="text" @click="snackbar.show = false">
-          Close
-        </v-btn>
-      </template>
-    </v-snackbar>
-
   </v-container>
 </template>
 
@@ -149,6 +133,7 @@ definePageMeta({
 })
 
 const authStore = useAuthStore()
+const uiStore = useUiStore()
 
 type ProfileView = 'info' | 'edit' | 'password'
 const currentView = ref<ProfileView>('info')
@@ -175,20 +160,6 @@ const openPasswordView = () => {
   })
 }
 
-/* ---------------- SNACKBAR ---------------- */
-
-const snackbar = reactive({
-  show: false,
-  text: '',
-  color: 'success'
-})
-
-const showMessage = (text: string, color: string = 'success') => {
-  snackbar.text = text
-  snackbar.color = color
-  snackbar.show = true
-}
-
 /* ---------------- PROFILE UPDATE ---------------- */
 
 const handleUpdateProfile = async (data: Partial<User>) => {
@@ -198,13 +169,13 @@ const handleUpdateProfile = async (data: Partial<User>) => {
     const result = await authStore.updateProfile(data)
 
     if (result.success) {
-      showMessage(result.message)
+      uiStore.showSnackbar(result.message, 'success')
       goToInfo()
     } else {
-      showMessage(result.message, 'error')
+      uiStore.showSnackbar(result.message, 'error')
     }
   } catch {
-    showMessage('Profile update failed.', 'error')
+    uiStore.showSnackbar('Profile update failed.', 'error')
   } finally {
     isUpdatingProfile.value = false
   }
@@ -219,17 +190,17 @@ const handleChangePassword = async (payload: ChangePasswordPayload) => {
     const result = await authStore.changePassword(payload)
 
     if (result.success) {
-      showMessage(result.message)
+      uiStore.showSnackbar(result.message, 'success')
 
       // reset form safely
       passFormRef.value?.reset?.()
 
       goToInfo()
     } else {
-      showMessage(result.message, 'error')
+      uiStore.showSnackbar(result.message, 'error')
     }
   } catch {
-    showMessage('Password change failed.', 'error')
+    uiStore.showSnackbar('Password change failed.', 'error')
   } finally {
     isChangingPassword.value = false
   }
