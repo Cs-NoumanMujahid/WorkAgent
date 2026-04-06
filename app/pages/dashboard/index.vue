@@ -1,6 +1,6 @@
 <template>
-  <div >
-    <!-- Welcome Banner -->
+  <div>
+    
     <DashboardWelcomeBanner />
 
     <!-- Stat Cards -->
