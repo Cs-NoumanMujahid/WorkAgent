@@ -90,8 +90,8 @@ export const useTaskStore = defineStore('tasks', {
       return `work_agent_tasks_${userId}`
     },
 
-    initTasks() {
-      if (this.initialized) return
+    initTasks(force = false) {
+      if (this.initialized && !force) return
 
       if (import.meta.client) {
         const key = this.getStorageKey()
@@ -99,7 +99,6 @@ export const useTaskStore = defineStore('tasks', {
 
         this.allTasks = stored ? JSON.parse(stored) : DEFAULT_TASKS
 
-        // optional but correct: persist initial state once
         if (!stored) {
           localStorage.setItem(key, JSON.stringify(this.allTasks))
         }
@@ -130,6 +129,29 @@ export const useTaskStore = defineStore('tasks', {
 
       this.allTasks.push(newTask)
       this.saveTasks()
+    },
+
+    updateTask(id: string, updates: Partial<Task>) {
+      const index = this.allTasks.findIndex(t => t.id === id)
+      if (index !== -1) {
+        this.allTasks[index] = {
+          ...this.allTasks[index],
+          ...updates,
+          id,
+          updatedAt: new Date().toISOString()
+        } as Task
+        this.saveTasks()
+      }
+    },
+
+    deleteTask(id: string) {
+      this.allTasks = this.allTasks.filter(t => t.id !== id)
+      this.saveTasks()
+    },
+
+    clearTasks() {
+      this.allTasks = []
+      this.initialized = false
     },
   },
 

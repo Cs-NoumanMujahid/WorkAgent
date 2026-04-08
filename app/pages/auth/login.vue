@@ -87,14 +87,18 @@ async function handleLogin() {
   if (!valid) return
 
   loading.value = true
-  const result = await authStore.login(form)
-  loading.value = false
-
-  if (result.success) {
-    uiStore.showSnackbar(result.message, 'success')
-    navigateTo('/dashboard')
-  } else {
-    uiStore.showSnackbar(result.message, 'error')
+  try {
+    const result = await authStore.login(form)
+    if (result.success) {
+      uiStore.showSnackbar(result.message, 'success')
+      await navigateTo('/dashboard')
+    } else {
+      uiStore.showSnackbar(result.message, 'error')
+    }
+  } catch (err: any) {
+    uiStore.showSnackbar('An unexpected error occurred during login.', 'error')
+  } finally {
+    loading.value = false
   }
 }
 </script>
