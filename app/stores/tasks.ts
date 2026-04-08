@@ -153,12 +153,31 @@ export const useTaskStore = defineStore('tasks', {
       this.allTasks = []
       this.initialized = false
     },
+
+    assignTask(taskId: string, userId: string) {
+      const index = this.allTasks.findIndex(t => t.id === taskId)
+      if (index !== -1) {
+        const task = this.allTasks[index]
+        if (task) {
+          task.assignedTo = userId
+          task.updatedAt = new Date().toISOString()
+          this.saveTasks()
+        }
+      }
+    },
   },
 
   getters: {
+    // Admin only: See all tasks in the system
+    allSystemTasks: (state) => state.allTasks,
+
     tasks: (state) => {
       const authStore = useAuthStore()
-      return state.allTasks.filter(t => t.createdBy === authStore.user?.id)
+      // Admins see all tasks, users see their own OR tasks assigned to them
+      if (authStore.isAdmin) return state.allTasks
+      return state.allTasks.filter(t => 
+        t.createdBy === authStore.user?.id || t.assignedTo === authStore.user?.id
+      )
     },
 
     totalTasks: (state) => {

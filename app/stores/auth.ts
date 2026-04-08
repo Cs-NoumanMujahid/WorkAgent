@@ -43,6 +43,7 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null as User | null,
     token: null as string | null,
+    allUsers: [] as User[],
   }),
 
   getters: {
@@ -275,5 +276,36 @@ export const useAuthStore = defineStore('auth', {
         return { success: false, message: err.message || 'Password change failed.' }
       }
     },
+
+    // Admin Actions
+    fetchUsers() {
+      if (!import.meta.client) return
+      const users = getPersistentUsers()
+      // Map to User interface (remove passwords)
+      this.allUsers = users.map(({ password, ...user }) => user as User)
+    },
+
+    deleteUser(userId: string) {
+      if (!this.isAdmin) return
+      const users = getPersistentUsers()
+      const filtered = users.filter(u => u.id !== userId)
+      savePersistentUsers(filtered)
+      this.fetchUsers() // Refresh
+    },
+
+    updateUserRole(userId: string, role: 'user' | 'admin') {
+      if (!this.isAdmin) return
+      const users = getPersistentUsers()
+      const userIndex = users.findIndex(u => u.id === userId)
+      if (userIndex !== -1) {
+        const u = users[userIndex]
+        if (u) {
+          u.role = role
+          u.updatedAt = new Date().toISOString()
+          savePersistentUsers(users)
+          this.fetchUsers()
+        }
+      }
+    },
   },
-})
+})
