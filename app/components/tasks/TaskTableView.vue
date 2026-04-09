@@ -7,6 +7,7 @@
       :loading="loading"
       hover
       class="bg-transparent"
+      @update:options="$emit('options-change', $event)"
     >
       <template #[`item.title`]="{ item }">
         <div class="d-flex align-center">
@@ -116,7 +117,7 @@ defineProps<{
   statusOptions: TaskStatus[]
 }>()
 
-defineEmits(['update-status', 'view-details', 'confirm-delete'])
+defineEmits(['update-status', 'view-details', 'confirm-delete', 'options-change'])
 </script>
 
 <style scoped>

@@ -34,7 +34,7 @@ const handleCancel = () => {
 const handleSubmit = async (formData: any) => {
   loading.value = true
   try {
-    taskStore.addTask({
+    await taskStore.createTask({
       ...formData,
       title: formData.title.trim(),
       description: formData.description.trim(),

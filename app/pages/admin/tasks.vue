@@ -9,6 +9,7 @@
       :tasks="taskStore.allSystemTasks"
       @assign-task="handleAssign"
       @delete-task="handleDelete"
+      @query-change="handleQueryChange"
     />
   </v-container>
 </template>
@@ -21,18 +22,52 @@ const authStore = useAuthStore()
 const uiStore = useUiStore()
 
 onMounted(() => {
-  taskStore.initTasks()
+  taskStore.fetchTasks()
   authStore.fetchUsers()
 })
 
-const handleAssign = (taskId: string, userId: string) => {
-  taskStore.assignTask(taskId, userId)
-  const user = authStore.allUsers.find(u => u.id === userId)
-  uiStore.showSnackbar(`Task successfully assigned to ${user?.fullName || 'user'}`, 'success')
+const taskQuery = reactive({
+  q: '',
+  status: 'All',
+})
+
+const handleQueryChange = async (payload: { q: string; status: string }) => {
+  taskQuery.q = payload.q
+  taskQuery.status = payload.status
+  try {
+    await taskStore.fetchTasks({
+      q: taskQuery.q || undefined,
+      status: taskQuery.status === 'All' ? undefined : taskQuery.status,
+    })
+  } catch {
+    uiStore.showSnackbar('Failed to load system tasks.', 'error')
+  }
 }
 
-const handleDelete = (taskId: string) => {
-  taskStore.deleteTask(taskId)
-  uiStore.showSnackbar('Task permanently deleted from the system.', 'success')
+const handleAssign = async (taskId: string, userId: string) => {
+  try {
+    await taskStore.updateTask(taskId, { assignedTo: userId })
+    const user = authStore.allUsers.find(u => u.id === userId)
+    uiStore.showSnackbar(`Task successfully assigned to ${user?.fullName || 'user'}`, 'success')
+    await taskStore.fetchTasks({
+      q: taskQuery.q || undefined,
+      status: taskQuery.status === 'All' ? undefined : taskQuery.status,
+    })
+  } catch {
+    uiStore.showSnackbar('Failed to assign task.', 'error')
+  }
+}
+
+const handleDelete = async (taskId: string) => {
+  try {
+    await taskStore.deleteTask(taskId)
+    uiStore.showSnackbar('Task permanently deleted from the system.', 'success')
+    await taskStore.fetchTasks({
+      q: taskQuery.q || undefined,
+      status: taskQuery.status === 'All' ? undefined : taskQuery.status,
+    })
+  } catch {
+    uiStore.showSnackbar('Failed to delete task.', 'error')
+  }
 }
 </script>

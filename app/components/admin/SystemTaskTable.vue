@@ -125,7 +125,7 @@ const props = defineProps<{
   tasks: Task[]
 }>()
 
-defineEmits(['assign-task', 'delete-task'])
+const emit = defineEmits(['assign-task', 'delete-task', 'query-change'])
 
 const search = ref('')
 const statusFilter = ref('All')
@@ -145,6 +145,14 @@ const filteredTasks = computed(() => {
     return matchesStatus
   })
 })
+
+let queryTimer: any = null
+watch([search, statusFilter], () => {
+  if (queryTimer) clearTimeout(queryTimer)
+  queryTimer = setTimeout(() => {
+    emit('query-change', { q: search.value || '', status: statusFilter.value })
+  }, 250)
+}, { immediate: true })
 
 const getAssignedUsers = (task: Task) => {
   if (!task.assignedTo) return []

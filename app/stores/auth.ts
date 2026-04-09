@@ -1,42 +1,8 @@
 import { defineStore } from 'pinia'
 import type { User, ChangePasswordPayload } from '~/shared/types/user'
 import type { LoginCredentials, RegisterCredentials } from '~/shared/types/user'
+import { apiFetch } from '~/utils/api'
 
-const ExistingUsers: (User & { password: string })[] = [
-  {
-    id: '1',
-    fullName: 'Admin User',
-    email: 'admin@123.com',
-    password: 'passwordadmin',
-    role: 'admin',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    fullName: 'Regular User',
-    email: 'user@123.com',
-    password: 'passworduser',
-    role: 'user',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
-
-// Helper for persistence
-const getPersistentUsers = (): (User & { password: string })[] => {
-  if (import.meta.server) return ExistingUsers
-  const stored = localStorage.getItem('work_agent_users')
-  return stored ? JSON.parse(stored) : ExistingUsers
-}
-
-const savePersistentUsers = (users: any[]) => {
-  if (import.meta.client) {
-    localStorage.setItem('work_agent_users', JSON.stringify(users))
-  }
-}
-
-const AUTH_USER_STORAGE_KEY = 'work_agent_auth_user'
 const AUTH_INFO_COOKIE_KEY = 'user_info'
 
 export const useAuthStore = defineStore('auth', {
@@ -54,20 +20,13 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async login(credentials: LoginCredentials): Promise<{ success: boolean; message: string }> {
       try {
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        const result = await apiFetch<{ token: string; user: User }>('/auth/login', {
+          method: 'POST',
+          body: credentials,
+        })
 
-        const users = getPersistentUsers()
-        const found = users.find(
-          u => u.email === credentials.email && u.password === credentials.password
-        )
-
-        if (!found) {
-          return { success: false, message: 'Invalid email or password.' }
-        }
-
-        const { password, ...user } = found
-        this.user = user
-        this.token = `mock-token-${user.id}`
+        this.user = result.user
+        this.token = result.token
 
         // Token Cookie
         const tokenCookie = useCookie('auth_token', {
@@ -85,51 +44,28 @@ export const useAuthStore = defineStore('auth', {
           sameSite: 'lax',
           path: '/'
         })
-        const { avatar, ...basicInfo } = user
+        const { avatar, ...basicInfo } = this.user
         infoCookie.value = JSON.stringify(basicInfo)
-
-        // Full User persistence (Client Only)
-        if (import.meta.client) {
-          try {
-            localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user))
-          } catch (e: any) {
-             if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-              console.error('Storage quota exceeded. Some data may not persist.')
-            }
-          }
-        }
 
         return { success: true, message: 'Login successful!' }
       } catch (err: any) {
-        return { success: false, message: err.message || 'Login failed.' }
+        return { success: false, message: err?.data?.detail || err.message || 'Login failed.' }
       }
     },
 
     async register(credentials: RegisterCredentials): Promise<{ success: boolean; message: string }> {
       try {
-        await new Promise(resolve => setTimeout(resolve, 1500))
-
-        const users = getPersistentUsers()
-        const exists = users.find(u => u.email === credentials.email)
-        if (exists) {
-          return { success: false, message: 'An account with this email already exists.' }
-        }
-
-        const newUser: User = {
-          id: String(users.length + 1),
-          fullName: credentials.fullName,
-          email: credentials.email,
-          role: 'user',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-
-        users.push({ ...newUser, password: credentials.password })
-        savePersistentUsers(users)
-
+        await apiFetch<User>('/auth/register', {
+          method: 'POST',
+          body: {
+            fullName: credentials.fullName,
+            email: credentials.email,
+            password: credentials.password,
+          },
+        })
         return { success: true, message: 'Registration successful! Please log in.' }
       } catch (err: any) {
-        return { success: false, message: err.message || 'Registration failed.' }
+        return { success: false, message: err?.data?.detail || err.message || 'Registration failed.' }
       }
     },
 
@@ -146,14 +82,10 @@ export const useAuthStore = defineStore('auth', {
       const infoCookie = useCookie(AUTH_INFO_COOKIE_KEY, { path: '/' })
       infoCookie.value = null
 
-      if (import.meta.client) {
-        localStorage.removeItem(AUTH_USER_STORAGE_KEY)
-      }
-
       navigateTo('/auth/login')
     },
 
-    initFromCookie() {
+    async initFromCookie() {
       const authCookie = useCookie('auth_token', { path: '/' })
       const infoCookie = useCookie(AUTH_INFO_COOKIE_KEY, { path: '/' })
 
@@ -163,8 +95,7 @@ export const useAuthStore = defineStore('auth', {
         // Restore basic info from cookie (Available on SSR)
         if (infoCookie.value) {
           try {
-            // Nuxt/H3 might already parse JSON strings in cookies depending on config,
-            // but usually it's a string here.
+        
             this.user = typeof infoCookie.value === 'string' 
               ? JSON.parse(infoCookie.value) 
               : infoCookie.value
@@ -173,22 +104,13 @@ export const useAuthStore = defineStore('auth', {
           }
         }
 
-        // Restore full data (avatar) from localStorage (Client Only)
-        if (import.meta.client) {
-          const storedUser = localStorage.getItem(AUTH_USER_STORAGE_KEY)
-          if (storedUser) {
-            try {
-              const fullUser = JSON.parse(storedUser)
-              // Merge full data into state if it's the same user
-              if (this.user && fullUser.id === this.user.id) {
-                this.user = { ...this.user, ...fullUser }
-              } else if (!this.user) {
-                this.user = fullUser
-              }
-            } catch {
-              // Ignore parse errors
-            }
-          }
+        // Hydrate full user from API (includes avatar)
+        try {
+          const me = await apiFetch<User>('/auth/me')
+          this.user = me
+        } catch {
+          // token invalid/expired, reset to login
+          this.logout()
         }
       }
     },
@@ -197,27 +119,11 @@ export const useAuthStore = defineStore('auth', {
       try {
         if (!this.user) return { success: false, message: 'User not logged in.' }
 
-        const users = getPersistentUsers()
-        const userIndex = users.findIndex(u => u.id === this.user?.id)
-
-        if (userIndex === -1) {
-          return { success: false, message: 'User not found in system.' }
-        }
-
-        // Update database
-        const currentUser = users[userIndex]
-        const updatedUser = { 
-          ...currentUser, 
-          ...data, 
-          updatedAt: new Date().toISOString() 
-        } as User & { password: string }
-
-        users[userIndex] = updatedUser
-        savePersistentUsers(users)
-
-        // Update State
-        const { password, ...userWithoutPassword } = updatedUser
-        this.user = userWithoutPassword
+        const updated = await apiFetch<User>('/auth/me', {
+          method: 'PUT',
+          body: data,
+        })
+        this.user = updated
 
         // Update Cookies (exclude avatar)
         const infoCookie = useCookie(AUTH_INFO_COOKIE_KEY, {
@@ -229,21 +135,9 @@ export const useAuthStore = defineStore('auth', {
         const { avatar, ...basicInfo } = this.user
         infoCookie.value = JSON.stringify(basicInfo)
 
-        // Update LocalStorage (include avatar)
-        if (import.meta.client) {
-          try {
-            localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(this.user))
-          } catch (e: any) {
-            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-              console.error('Storage quota exceeded. Image may be too large.')
-              // we can still return success as cookies are set, but user might lose avatar on next refresh
-            }
-          }
-        }
-
         return { success: true, message: 'Profile updated successfully!' }
       } catch (err: any) {
-        return { success: false, message: err.message || 'Profile update failed.' }
+        return { success: false, message: err?.data?.detail || err.message || 'Profile update failed.' }
       }
     },
 
@@ -251,61 +145,37 @@ export const useAuthStore = defineStore('auth', {
       try {
         if (!this.user) return { success: false, message: 'User not logged in.' }
 
-        const users = getPersistentUsers()
-        const userIndex = users.findIndex(u => u.id === this.user?.id)
-
-        if (userIndex === -1) {
-          return { success: false, message: 'User not found in system.' }
-        }
-
-        const foundUser = users[userIndex]
-        if (!foundUser || foundUser.password !== payload.currentPassword) {
-          return { success: false, message: 'Current password is incorrect.' }
-        }
-
-        const updatedUser = {
-          ...foundUser,
-          password: payload.newPassword,
-          updatedAt: new Date().toISOString()
-        }
-        users[userIndex] = updatedUser
-        savePersistentUsers(users)
-
-        return { success: true, message: 'Password changed successfully!' }
+        const res = await apiFetch<{ success: boolean; message: string }>('/auth/change-password', {
+          method: 'POST',
+          body: payload,
+        })
+        return { success: true, message: res.message || 'Password changed successfully!' }
       } catch (err: any) {
-        return { success: false, message: err.message || 'Password change failed.' }
+        return { success: false, message: err?.data?.detail || err.message || 'Password change failed.' }
       }
     },
 
     // Admin Actions
-    fetchUsers() {
-      if (!import.meta.client) return
-      const users = getPersistentUsers()
-      // Map to User interface (remove passwords)
-      this.allUsers = users.map(({ password, ...user }) => user as User)
-    },
-
-    deleteUser(userId: string) {
-      if (!this.isAdmin) return
-      const users = getPersistentUsers()
-      const filtered = users.filter(u => u.id !== userId)
-      savePersistentUsers(filtered)
-      this.fetchUsers() // Refresh
-    },
-
-    updateUserRole(userId: string, role: 'user' | 'admin') {
-      if (!this.isAdmin) return
-      const users = getPersistentUsers()
-      const userIndex = users.findIndex(u => u.id === userId)
-      if (userIndex !== -1) {
-        const u = users[userIndex]
-        if (u) {
-          u.role = role
-          u.updatedAt = new Date().toISOString()
-          savePersistentUsers(users)
-          this.fetchUsers()
-        }
+    async fetchUsers(params: { q?: string; role?: string; sort_by?: string; sort_dir?: string } = {}) {
+      try {
+        this.allUsers = await apiFetch<User[]>('/admin/users', { query: params })
+      } catch {
+        this.allUsers = []
       }
+    },
+
+    async deleteUser(userId: string) {
+      await apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
+      this.allUsers = this.allUsers.filter(u => u.id !== userId)
+    },
+
+    async updateUserRole(userId: string, role: 'user' | 'admin') {
+      const updated = await apiFetch<User>(`/admin/users/${userId}/role`, {
+        method: 'PATCH',
+        body: { role },
+      })
+      const idx = this.allUsers.findIndex(u => u.id === userId)
+      if (idx !== -1) this.allUsers[idx] = updated
     },
   },
 })

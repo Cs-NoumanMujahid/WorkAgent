@@ -102,7 +102,7 @@ const props = defineProps<{
   users: User[]
 }>()
 
-defineEmits(['add-user', 'edit-user', 'delete-user'])
+const emit = defineEmits(['add-user', 'edit-user', 'delete-user', 'query-change'])
 
 const search = ref('')
 const roleFilter = ref('All')
@@ -123,6 +123,18 @@ const filteredUsers = computed(() => {
     return matchesSearch && matchesRole
   })
 })
+
+let queryTimer: any = null
+const emitQuery = () => {
+  emit('query-change', { q: search.value || '', role: roleFilter.value })
+}
+
+watch([search, roleFilter], () => {
+  if (queryTimer) clearTimeout(queryTimer)
+  queryTimer = setTimeout(() => {
+    emitQuery()
+  }, 250)
+}, { immediate: true })
 
 const isCurrentUser = (user: User) => user.id === authStore.user?.id
 

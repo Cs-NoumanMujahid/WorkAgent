@@ -12,6 +12,7 @@
       @delete-user="openDeleteConfirm"
       @edit-user="openEditDialog"
       @add-user="openAddDialog"
+      @query-change="handleQueryChange"
     />
 
     <!-- Delete Confirmation -->
@@ -75,8 +76,23 @@ const editDialog = ref(false)
 const selectedUser = ref<User | null>(null)
 const editRole = ref<'user' | 'admin'>('user')
 
-onMounted(() => {
-  authStore.fetchUsers()
+const query = reactive({
+  q: '',
+  role: 'All',
+})
+
+const handleQueryChange = async (payload: { q: string; role: string }) => {
+  query.q = payload.q
+  query.role = payload.role
+  try {
+    await authStore.fetchUsers({ q: query.q || undefined, role: query.role })
+  } catch {
+    uiStore.showSnackbar('Failed to load users.', 'error')
+  }
+}
+
+onMounted(async () => {
+  await authStore.fetchUsers()
 })
 
 const openDeleteConfirm = (user: User) => {
@@ -94,19 +110,27 @@ const openAddDialog = () => {
   uiStore.showSnackbar('User creation is handled via registration flow in this demo.', 'info')
 }
 
-const handleDeleteUser = () => {
+const handleDeleteUser = async () => {
   if (selectedUser.value) {
-    authStore.deleteUser(selectedUser.value.id)
-    uiStore.showSnackbar('User removed from system.', 'success')
-    deleteDialog.value = false
+    try {
+      await authStore.deleteUser(selectedUser.value.id)
+      uiStore.showSnackbar('User removed from system.', 'success')
+      deleteDialog.value = false
+    } catch {
+      uiStore.showSnackbar('Failed to delete user.', 'error')
+    }
   }
 }
 
-const handleUpdateRole = () => {
+const handleUpdateRole = async () => {
   if (selectedUser.value) {
-    authStore.updateUserRole(selectedUser.value.id, editRole.value)
-    uiStore.showSnackbar(`Role updated to ${editRole.value}`, 'success')
-    editDialog.value = false
+    try {
+      await authStore.updateUserRole(selectedUser.value.id, editRole.value)
+      uiStore.showSnackbar(`Role updated to ${editRole.value}`, 'success')
+      editDialog.value = false
+    } catch {
+      uiStore.showSnackbar('Failed to update role.', 'error')
+    }
   }
 }
 </script>

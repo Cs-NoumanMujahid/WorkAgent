@@ -50,13 +50,14 @@
     <TasksTaskTableView
       v-if="viewMode === 'table'"
       :tasks="filteredTasks"
-      :search="search"
+      :search="''"
       :loading="loading"
       :headers="headers"
       :status-options="statusOptions"
       @update-status="updateStatus"
       @view-details="viewDetails"
       @confirm-delete="confirmDelete"
+      @options-change="handleOptionsChange"
     />
 
     <!-- Card View -->
@@ -95,6 +96,8 @@ const uiStore = useUiStore()
 const search = ref('')
 const viewMode = ref<'table' | 'card'>('table')
 const loading = ref(false)
+const sortBy = ref<string>('updatedAt')
+const sortDir = ref<'asc' | 'desc'>('desc')
 
 const filterStatus = ref('All')
 const filterPriority = ref('All')
@@ -122,25 +125,61 @@ const categories = computed(() => {
   return Array.from(cats).sort()
 })
 
-const filteredTasks = computed(() => {
-  return taskStore.tasks.filter(t => {
-    const matchesSearch = !search.value || 
-      t.title.toLowerCase().includes(search.value.toLowerCase()) ||
-      t.description.toLowerCase().includes(search.value.toLowerCase()) ||
-      t.category.toLowerCase().includes(search.value.toLowerCase())
-    
-    const matchesStatus = filterStatus.value === 'All' || t.status === filterStatus.value
-    const matchesPriority = filterPriority.value === 'All' || t.priority === filterPriority.value
-    const matchesCategory = filterCategory.value === 'All' || t.category === filterCategory.value
-    const matchesDate = !filterDate.value || t.dueDate === filterDate.value
+const filteredTasks = computed(() => taskStore.tasks)
 
-    return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesDate
-  })
+let searchTimer: any = null
+const fetchFromApi = async () => {
+  loading.value = true
+  try {
+    const due = filterDate.value || undefined
+    await taskStore.fetchTasks({
+      q: search.value || undefined,
+      status: filterStatus.value === 'All' ? undefined : filterStatus.value,
+      priority: filterPriority.value === 'All' ? undefined : filterPriority.value,
+      category: filterCategory.value === 'All' ? undefined : filterCategory.value,
+      due_from: due,
+      due_to: due,
+      sort_by: sortBy.value,
+      sort_dir: sortDir.value,
+    })
+  } catch {
+    uiStore.showSnackbar('Failed to load tasks.', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  await fetchFromApi()
 })
 
-const updateStatus = (id: string, status: TaskStatus) => {
-  taskStore.updateTask(id, { status })
-  uiStore.showSnackbar(`Status updated to ${status}`, 'success')
+watch([filterStatus, filterPriority, filterCategory, filterDate, sortBy, sortDir], async () => {
+  await fetchFromApi()
+})
+
+watch(search, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    fetchFromApi()
+  }, 250)
+})
+
+const handleOptionsChange = (opts: any) => {
+  const s = opts?.sortBy?.[0]
+  if (!s?.key) return
+  // backend expects camelCase keys like dueDate/createdAt/updatedAt
+  sortBy.value = s.key
+  sortDir.value = s.order === 'asc' ? 'asc' : 'desc'
+}
+
+const updateStatus = async (id: string, status: TaskStatus) => {
+  try {
+    await taskStore.updateTask(id, { status })
+    uiStore.showSnackbar(`Status updated to ${status}`, 'success')
+    await fetchFromApi()
+  } catch {
+    uiStore.showSnackbar('Failed to update status.', 'error')
+  }
 }
 
 const viewDetails = (task: Task) => {
@@ -153,12 +192,17 @@ const confirmDelete = (task: Task) => {
   deleteDialog.value = true
 }
 
-const handleDelete = () => {
+const handleDelete = async () => {
   if (selectedTask.value) {
-    taskStore.deleteTask(selectedTask.value.id)
-    uiStore.showSnackbar('Task deleted successfully', 'success')
-    deleteDialog.value = false
-    selectedTask.value = null
+    try {
+      await taskStore.deleteTask(selectedTask.value.id)
+      uiStore.showSnackbar('Task deleted successfully', 'success')
+      deleteDialog.value = false
+      selectedTask.value = null
+      await fetchFromApi()
+    } catch {
+      uiStore.showSnackbar('Failed to delete task.', 'error')
+    }
   }
 }
 </script>
