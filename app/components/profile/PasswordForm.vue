@@ -28,7 +28,7 @@
             prepend-inner-icon="mdi-lock-outline"
             :append-inner-icon="show.current ? 'mdi-eye-off' : 'mdi-eye'"
             @click:append-inner="show.current = !show.current"
-            :rules="[v => !!v || 'Current password is required']"
+            :rules=passwordRules
             required
           />
         </v-col>
@@ -44,10 +44,7 @@
             prepend-inner-icon="mdi-lock-reset"
             :append-inner-icon="show.new ? 'mdi-eye-off' : 'mdi-eye'"
             @click:append-inner="show.new = !show.new"
-            :rules="[
-              v => !!v || 'New password is required',
-              v => (v && v.length >= 8) || 'Min 8 characters'
-            ]"
+            :rules= passwordRules
             required
           />
         </v-col>
@@ -63,10 +60,7 @@
             prepend-inner-icon="mdi-lock-check-outline"
             :append-inner-icon="show.confirm ? 'mdi-eye-off' : 'mdi-eye'"
             @click:append-inner="show.confirm = !show.confirm"
-            :rules="[
-              v => !!v || 'Confirmation required',
-              v => v === passData.newPassword || 'Passwords do not match'
-            ]"
+            :rules=confirmPasswordRules(passData.newPassword)
             required
           />
         </v-col>
@@ -123,6 +117,7 @@ const emit = defineEmits<{
 
 const formRef = ref()
 const formValid = ref(false)
+import { passwordRules,confirmPasswordRules } from '~/utils/validators'
 
 const passData = reactive({
   currentPassword: '',

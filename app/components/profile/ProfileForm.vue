@@ -58,7 +58,7 @@
             variant="outlined"
             rounded="lg"
             prepend-inner-icon="mdi-account-outline"
-            :rules="[v => !!v || 'Name is required']"
+            :rules=nameRules
             required
           />
 
@@ -68,10 +68,7 @@
             variant="outlined"
             rounded="lg"
             prepend-inner-icon="mdi-email-outline"
-            :rules="[
-              v => !!v || 'Email is required',
-              v => /.+@.+\..+/.test(v) || 'Invalid email'
-            ]"
+            :rules=emailRules
             required
           />
 
@@ -135,6 +132,7 @@
 
 <script setup lang="ts">
 import type { User } from '~/shared/types/user'
+import { emailRules, nameRules } from '~/utils/validators'
 
 const authStore = useAuthStore()
 
@@ -154,10 +152,7 @@ const formValid = ref(false)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 
-/**
- * LOCAL COPY CONTROL
- * avoids overwriting user input while typing
- */
+
 const formData = reactive<Partial<User>>({
   fullName: '',
   email: '',
@@ -166,7 +161,7 @@ const formData = reactive<Partial<User>>({
   avatar: ''
 })
 
-/* ---------------- INITIAL LOAD FROM STORE ---------------- */
+
 
 const loadFromStore = () => {
   const u = authStore.user
@@ -179,10 +174,7 @@ const loadFromStore = () => {
   formData.avatar = u.avatar || ''
 }
 
-/**
- * run once + when user changes
- * (NOT watchEffect → prevents overwrite while typing)
- */
+
 watch(
   () => authStore.user,
   () => loadFromStore(),
@@ -216,8 +208,13 @@ const handleImageUpload = (event: Event) => {
 
   const reader = new FileReader()
 
-  reader.onload = (e) => {
-    formData.avatar = e.target?.result as string
+  reader.onload = async (e) => {
+    const base64 = e.target?.result as string
+    try {
+      formData.avatar = await compressImage(base64)
+    } catch {
+      formData.avatar = base64 // Fallback anyway
+    }
   }
 
   reader.readAsDataURL(file)
@@ -239,7 +236,7 @@ const handleCancel = () => {
   emit('cancel')
 }
 
-/* ---------------- EXPOSE ---------------- */
+
 
 const reset = () => {
   formRef.value?.reset()

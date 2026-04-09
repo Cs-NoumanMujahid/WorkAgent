@@ -1,47 +1,15 @@
 import { defineStore } from 'pinia'
 import type { User, ChangePasswordPayload } from '~/shared/types/user'
 import type { LoginCredentials, RegisterCredentials } from '~/shared/types/user'
+import { apiFetch } from '~/utils/api'
 
-const ExistingUsers: (User & { password: string })[] = [
-  {
-    id: '1',
-    fullName: 'Admin User',
-    email: 'admin@123.com',
-    password: 'passwordadmin',
-    role: 'admin',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    fullName: 'Regular User',
-    email: 'user@123.com',
-    password: 'passworduser',
-    role: 'user',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
-
-// Helper for persistence
-const getPersistentUsers = (): (User & { password: string })[] => {
-  if (import.meta.server) return ExistingUsers
-  const stored = localStorage.getItem('work_agent_users')
-  return stored ? JSON.parse(stored) : ExistingUsers
-}
-
-const savePersistentUsers = (users: any[]) => {
-  if (import.meta.client) {
-    localStorage.setItem('work_agent_users', JSON.stringify(users))
-  }
-}
-
-const AUTH_USER_STORAGE_KEY = 'work_agent_auth_user'
+const AUTH_INFO_COOKIE_KEY = 'user_info'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null as User | null,
     token: null as string | null,
+    allUsers: [] as User[],
   }),
 
   getters: {
@@ -51,149 +19,163 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     async login(credentials: LoginCredentials): Promise<{ success: boolean; message: string }> {
-   
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      try {
+        const result = await apiFetch<{ token: string; user: User }>('/auth/login', {
+          method: 'POST',
+          body: credentials,
+        })
 
-      const users = getPersistentUsers()
-      const found = users.find(
-        u => u.email === credentials.email && u.password === credentials.password
-      )
+        this.user = result.user
+        this.token = result.token
 
-      if (!found) {
-        return { success: false, message: 'Invalid email or password.' }
+        // Token Cookie
+        const tokenCookie = useCookie('auth_token', {
+          maxAge: 60 * 60 * 24 * 7,
+          secure: import.meta.env.PROD,
+          sameSite: 'lax',
+          path: '/'
+        })
+        tokenCookie.value = this.token
+
+        // Basic User Info Cookie (Safe for SSR, no large avatar)
+        const infoCookie = useCookie(AUTH_INFO_COOKIE_KEY, {
+          maxAge: 60 * 60 * 24 * 7,
+          secure: import.meta.env.PROD,
+          sameSite: 'lax',
+          path: '/'
+        })
+        const { avatar, ...basicInfo } = this.user
+        infoCookie.value = JSON.stringify(basicInfo)
+
+        return { success: true, message: 'Login successful!' }
+      } catch (err: any) {
+        return { success: false, message: err?.data?.detail || err.message || 'Login failed.' }
       }
-
-      const { password, ...user } = found
-      this.user = user
-      this.token = `mock-token-${user.id}`
-
-      // `secure: true` breaks local http dev (cookie won't be stored/sent).
-      const cookie = useCookie('auth_token', {
-        maxAge: 60 * 60 * 24 * 7,
-        secure: import.meta.env.PROD,
-        sameSite: 'lax',
-        path: '/'
-      })
-      cookie.value = this.token
-
-      // Persist user in localStorage instead of cookies (avatar/base64 can exceed cookie size limits).
-      if (import.meta.client) {
-        localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(this.user))
-      }
-
-      return { success: true, message: 'Login successful!' }
     },
 
     async register(credentials: RegisterCredentials): Promise<{ success: boolean; message: string }> {
-      await new Promise(resolve => setTimeout(resolve, 1500))
-
-      const users = getPersistentUsers()
-      const exists = users.find(u => u.email === credentials.email)
-      if (exists) {
-        return { success: false, message: 'An account with this email already exists.' }
+      try {
+        await apiFetch<User>('/auth/register', {
+          method: 'POST',
+          body: {
+            fullName: credentials.fullName,
+            email: credentials.email,
+            password: credentials.password,
+          },
+        })
+        return { success: true, message: 'Registration successful! Please log in.' }
+      } catch (err: any) {
+        return { success: false, message: err?.data?.detail || err.message || 'Registration failed.' }
       }
-
-      const newUser: User = {
-        id: String(users.length + 1),
-        fullName: credentials.fullName,
-        email: credentials.email,
-        role: 'user',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      users.push({ ...newUser, password: credentials.password })
-      savePersistentUsers(users)
-
-      return { success: true, message: 'Registration successful! Please log in.' }
     },
 
     logout() {
+      const taskStore = useTaskStore()
+      taskStore.clearTasks()
+
       this.user = null
       this.token = null
 
       const authCookie = useCookie('auth_token', { path: '/' })
       authCookie.value = null
-      if (import.meta.client) {
-        localStorage.removeItem(AUTH_USER_STORAGE_KEY)
-      }
+      
+      const infoCookie = useCookie(AUTH_INFO_COOKIE_KEY, { path: '/' })
+      infoCookie.value = null
 
       navigateTo('/auth/login')
     },
 
-    initFromCookie() {
+    async initFromCookie() {
       const authCookie = useCookie('auth_token', { path: '/' })
+      const infoCookie = useCookie(AUTH_INFO_COOKIE_KEY, { path: '/' })
+
       if (authCookie.value) {
         this.token = authCookie.value
-
-        // Prefer localStorage user snapshot (supports large avatar strings).
-        if (import.meta.client) {
-          const storedUser = localStorage.getItem(AUTH_USER_STORAGE_KEY)
-          if (storedUser) {
-            this.user = JSON.parse(storedUser)
+        
+        // Restore basic info from cookie (Available on SSR)
+        if (infoCookie.value) {
+          try {
+        
+            this.user = typeof infoCookie.value === 'string' 
+              ? JSON.parse(infoCookie.value) 
+              : infoCookie.value
+          } catch {
+            this.user = null
           }
+        }
+
+        // Hydrate full user from API (includes avatar)
+        try {
+          const me = await apiFetch<User>('/auth/me')
+          this.user = me
+        } catch {
+          // token invalid/expired, reset to login
+          this.logout()
         }
       }
     },
 
     async updateProfile(data: Partial<User>): Promise<{ success: boolean; message: string }> {
-      if (!this.user) return { success: false, message: 'User not logged in.' }
+      try {
+        if (!this.user) return { success: false, message: 'User not logged in.' }
 
-      const users = getPersistentUsers()
-      const userIndex = users.findIndex(u => u.id === this.user?.id)
+        const updated = await apiFetch<User>('/auth/me', {
+          method: 'PUT',
+          body: data,
+        })
+        this.user = updated
 
-      if (userIndex === -1) {
-        return { success: false, message: 'User not found in system.' }
+        // Update Cookies (exclude avatar)
+        const infoCookie = useCookie(AUTH_INFO_COOKIE_KEY, {
+          maxAge: 60 * 60 * 24 * 7,
+          secure: import.meta.env.PROD,
+          sameSite: 'lax',
+          path: '/'
+        })
+        const { avatar, ...basicInfo } = this.user
+        infoCookie.value = JSON.stringify(basicInfo)
+
+        return { success: true, message: 'Profile updated successfully!' }
+      } catch (err: any) {
+        return { success: false, message: err?.data?.detail || err.message || 'Profile update failed.' }
       }
-
-      // Update the user in the "database"
-      const currentUser = users[userIndex]
-      const updatedUser = { 
-        ...currentUser, 
-        ...data, 
-        updatedAt: new Date().toISOString() 
-      } as User & { password: string }
-
-      users[userIndex] = updatedUser
-      savePersistentUsers(users)
-
-      // Update current state
-      const { password, ...userWithoutPassword } = updatedUser
-      this.user = userWithoutPassword
-
-      // Persist user snapshot locally (supports large avatar strings).
-      if (import.meta.client) {
-        localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(this.user))
-      }
-
-      return { success: true, message: 'Profile updated successfully!' }
     },
 
     async changePassword(payload: ChangePasswordPayload): Promise<{ success: boolean; message: string }> {
-      if (!this.user) return { success: false, message: 'User not logged in.' }
+      try {
+        if (!this.user) return { success: false, message: 'User not logged in.' }
 
-      const users = getPersistentUsers()
-      const userIndex = users.findIndex(u => u.id === this.user?.id)
-
-      if (userIndex === -1) {
-        return { success: false, message: 'User not found in system.' }
+        const res = await apiFetch<{ success: boolean; message: string }>('/auth/change-password', {
+          method: 'POST',
+          body: payload,
+        })
+        return { success: true, message: res.message || 'Password changed successfully!' }
+      } catch (err: any) {
+        return { success: false, message: err?.data?.detail || err.message || 'Password change failed.' }
       }
+    },
 
-      const foundUser = users[userIndex]
-      if (!foundUser || foundUser.password !== payload.currentPassword) {
-        return { success: false, message: 'Current password is incorrect.' }
+    // Admin Actions
+    async fetchUsers(params: { q?: string; role?: string; sort_by?: string; sort_dir?: string } = {}) {
+      try {
+        this.allUsers = await apiFetch<User[]>('/admin/users', { query: params })
+      } catch {
+        this.allUsers = []
       }
+    },
 
-      // Update password
-      const updatedUser = {
-        ...foundUser,
-        password: payload.newPassword,
-        updatedAt: new Date().toISOString()
-      }
-      users[userIndex] = updatedUser
-      savePersistentUsers(users)
+    async deleteUser(userId: string) {
+      await apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
+      this.allUsers = this.allUsers.filter(u => u.id !== userId)
+    },
 
-      return { success: true, message: 'Password changed successfully!' }
+    async updateUserRole(userId: string, role: 'user' | 'admin') {
+      const updated = await apiFetch<User>(`/admin/users/${userId}/role`, {
+        method: 'PATCH',
+        body: { role },
+      })
+      const idx = this.allUsers.findIndex(u => u.id === userId)
+      if (idx !== -1) this.allUsers[idx] = updated
     },
   },
 })

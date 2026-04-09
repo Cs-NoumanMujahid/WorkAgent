@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { Task } from '~/shared/types/task'
-import { useAuthStore } from '~/stores/auth' // adjust path if yours differs
+import { apiFetch } from '~/utils/api'
 
 const DEFAULT_TASKS: Task[] = [
   {
@@ -81,62 +81,75 @@ export const useTaskStore = defineStore('tasks', {
   state: () => ({
     allTasks: [] as Task[],
     initialized: false,
+    loading: false,
   }),
 
   actions: {
-    getStorageKey() {
-      const authStore = useAuthStore()
-      const userId = authStore.user?.id || 'guest'
-      return `work_agent_tasks_${userId}`
-    },
-
     initTasks() {
+      // keep a minimal fallback for SSR/first paint; API hydration happens after auth init
       if (this.initialized) return
-
-      if (import.meta.client) {
-        const key = this.getStorageKey()
-        const stored = localStorage.getItem(key)
-
-        this.allTasks = stored ? JSON.parse(stored) : DEFAULT_TASKS
-
-        // optional but correct: persist initial state once
-        if (!stored) {
-          localStorage.setItem(key, JSON.stringify(this.allTasks))
-        }
-
-        this.initialized = true
-      } else {
-        this.allTasks = DEFAULT_TASKS
-      }
+      this.allTasks = DEFAULT_TASKS
+      this.initialized = true
     },
 
-    saveTasks() {
-      if (!import.meta.client) return
-
-      const key = this.getStorageKey()
-      localStorage.setItem(key, JSON.stringify(this.allTasks))
+    async fetchTasks(params: {
+      q?: string
+      status?: string
+      priority?: string
+      category?: string
+      due_from?: string
+      due_to?: string
+      sort_by?: string
+      sort_dir?: string
+    } = {}) {
+      this.loading = true
+      try {
+        const tasks = await apiFetch<Task[]>('/tasks', { query: params })
+        this.allTasks = tasks
+      } finally {
+        this.loading = false
+      }
     },
 
     addTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) {
-      const authStore = useAuthStore()
+      throw new Error('Use createTask() with API')
+    },
 
-      const newTask: Task = {
-        ...task,
-        id: String(Date.now()),
-        createdBy: authStore.user?.id || 'unknown',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
+    async createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) {
+      const created = await apiFetch<Task>('/tasks', { method: 'POST', body: task })
+      this.allTasks = [created, ...this.allTasks]
+      return created
+    },
 
-      this.allTasks.push(newTask)
-      this.saveTasks()
+    async updateTask(id: string, updates: Partial<Task>) {
+      const updated = await apiFetch<Task>(`/tasks/${id}`, { method: 'PUT', body: updates })
+      const idx = this.allTasks.findIndex(t => t.id === id)
+      if (idx !== -1) this.allTasks[idx] = updated
+      return updated
+    },
+
+    async deleteTask(id: string) {
+      await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
+      this.allTasks = this.allTasks.filter(t => t.id !== id)
+    },
+
+    clearTasks() {
+      this.allTasks = []
+      this.initialized = false
+    },
+
+    assignTask(taskId: string, userId: string) {
+      // handled via updateTask for API
     },
   },
 
   getters: {
+    // Admin only: See all tasks in the system
+    allSystemTasks: (state) => state.allTasks,
+
     tasks: (state) => {
-      const authStore = useAuthStore()
-      return state.allTasks.filter(t => t.createdBy === authStore.user?.id)
+      // server already filters by permissions; keep as-is
+      return state.allTasks
     },
 
     totalTasks: (state) => {

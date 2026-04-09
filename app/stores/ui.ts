@@ -10,6 +10,7 @@ export const useUiStore = defineStore('ui', {
       color: 'success' as SnackbarColor,
       timeout: 3000,
     },
+    appBackground: (import.meta.client && localStorage.getItem('appBackground')) || '#f5f7fa',
   }),
 
   actions: {
@@ -21,6 +22,12 @@ export const useUiStore = defineStore('ui', {
     },
     closeSnackbar() {
       this.snackbar.show = false
+    },
+    setAppBackground(color: string) {
+      this.appBackground = color
+      if (import.meta.client) {
+        localStorage.setItem('appBackground', color)
+      }
     },
   },
 })

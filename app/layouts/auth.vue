@@ -21,11 +21,13 @@
                 class="d-flex flex-column align-center justify-center pa-8 w-100"
                 style="background-color: #f0fdf4; height: 100%;"
               >
-                <Vue3Lottie
-                  :animation-data="yogaAnimation"
-                  :height="320"
-                  :width="320"
-                />
+                <client-only>
+                  <Vue3Lottie
+                    :animation-data="yogaAnimation"
+                    :height="320"
+                    :width="320"
+                  />
+                </client-only>
                 <h2 class="text-h6 font-weight-bold text-center mt-6" style="color: #333;">
                   Make your work easier and organized with Task Manager
                 </h2>
@@ -37,21 +39,23 @@
       </v-container>
     </v-main>
 
-    <v-snackbar
-      v-model="uiStore.snackbar.show"
-      :color="uiStore.snackbar.color"
-      :timeout="uiStore.snackbar.timeout"
-      rounded="lg"
-      location="top end"
-    >
-      {{ uiStore.snackbar.text }}
+    <client-only>
+      <v-snackbar
+        v-model="uiStore.snackbar.show"
+        :color="uiStore.snackbar.color"
+        :timeout="uiStore.snackbar.timeout"
+        rounded="lg"
+        location="top end"
+      >
+        {{ uiStore.snackbar.text }}
 
-      <template #actions>
-        <v-btn variant="text" @click="uiStore.closeSnackbar()">
-          Close
-        </v-btn>
-      </template>
-    </v-snackbar>
+        <template #actions>
+          <v-btn variant="text" @click="uiStore.closeSnackbar()">
+            Close
+          </v-btn>
+        </template>
+      </v-snackbar>
+    </client-only>
   </v-app>
 </template>
 
